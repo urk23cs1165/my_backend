@@ -145,7 +145,7 @@ app.post('/api/upload', async (req, res) => {
     await file.mv(uploadPath);
     console.log(`✅ File uploaded successfully: ${fileName}`);
 
-    const fileUrl = `/uploads/${fileName}`;
+    const fileUrl = `https://my-backend-ov6w.onrender.com/uploads/${file.filename}`;
     console.log('🔗 File URL:', fileUrl);
 
     res.json({
@@ -479,3 +479,4 @@ app.put('/api/admin/reports/:id/verify', async (req, res) => {
 // Start server
 const PORT = process.env.PORT || 5000;
 app.listen(PORT, () => console.log(`🚀 Server running on port ${PORT}`));
+
