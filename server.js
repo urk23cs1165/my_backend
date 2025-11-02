@@ -11,8 +11,24 @@ dotenv.config({ path: path.join(__dirname, '.env') });
 
 const app = express();
 
+// CORS configuration
+const corsOptions = {
+  origin: [
+    'https://pathhole-2717e.web.app',
+    'https://pathhole-2717e.firebaseapp.com',
+    // Include localhost for development
+    'http://localhost:5173',
+    'http://localhost:5174',
+    'http://localhost:5175'
+  ],
+  methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
+  allowedHeaders: ['Content-Type', 'Authorization'],
+  credentials: true,
+  maxAge: 86400 // 24 hours
+};
+
 // Middleware
-app.use(cors());
+app.use(cors(corsOptions));
 app.use(express.json());
 app.use(fileUpload());
 
@@ -31,7 +47,14 @@ app.use('/uploads', express.static(path.join(__dirname, 'uploads')));
 // Database connection with error handling
 const connectDB = async () => {
   try {
-    const conn = await mongoose.connect(process.env.MONGO_URI);
+    const conn = await mongoose.connect(process.env.MONGO_URI, {
+      serverApi: {
+        version: '1',
+        strict: true,
+        deprecationErrors: true,
+      },
+      dbName: 'smart_hazard_db'
+    });
     console.log(`✅ MongoDB Connected: ${conn.connection.host}`);
     
     // Create collections if they don't exist
@@ -145,7 +168,9 @@ app.post('/api/upload', async (req, res) => {
     await file.mv(uploadPath);
     console.log(`✅ File uploaded successfully: ${fileName}`);
 
-    const fileUrl = `https://my-backend-ov6w.onrender.com/uploads/${file.filename}`;
+    // Construct absolute URL using the backend's domain
+    const baseUrl = process.env.BACKEND_URL || 'https://my-backend-ov6w.onrender.com';
+    const fileUrl = `${baseUrl}/uploads/${fileName}`;
     console.log('🔗 File URL:', fileUrl);
 
     res.json({
@@ -479,4 +504,3 @@ app.put('/api/admin/reports/:id/verify', async (req, res) => {
 // Start server
 const PORT = process.env.PORT || 5000;
 app.listen(PORT, () => console.log(`🚀 Server running on port ${PORT}`));
-
