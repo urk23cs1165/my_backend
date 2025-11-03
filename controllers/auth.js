@@ -4,14 +4,42 @@ const jwt = require('jsonwebtoken');
 // Register user
 exports.register = async (req, res) => {
   try {
+    console.log('Registration attempt:', { 
+      ...req.body,
+      password: req.body.password ? '[HIDDEN]' : undefined 
+    });
+
     const { name, email, password, role } = req.body;
+
+    // Validate required fields
+    if (!name || !email || !password || !role) {
+      console.log('Missing required fields:', {
+        hasName: !!name,
+        hasEmail: !!email,
+        hasPassword: !!password,
+        hasRole: !!role
+      });
+      return res.status(400).json({
+        success: false,
+        message: 'Please provide all required fields: name, email, password, and role'
+      });
+    }
 
     // Check if user already exists
     let user = await User.findOne({ email });
     if (user) {
+      console.log('User already exists:', email);
       return res.status(400).json({
         success: false,
-        message: 'User already exists'
+        message: 'User already exists with this email address'
+      });
+    }
+
+    // Validate role
+    if (!['user', 'admin'].includes(role)) {
+      return res.status(400).json({
+        success: false,
+        message: 'Invalid role. Must be either "user" or "admin"'
       });
     }
 
@@ -20,15 +48,23 @@ exports.register = async (req, res) => {
       name,
       email,
       password,
-      role: role || 'user'
+      role
     });
 
     // Create token
     const token = jwt.sign(
       { id: user._id, role: user.role },
-      process.env.JWT_SECRET,
+      process.env.JWT_SECRET || '1a27ddd24c6db7594643a64cf5a3a70c9c230dadf2305dfd8992496739f963fe',
       { expiresIn: '30d' }
     );
+
+    console.log('Registration successful:', {
+      userId: user._id,
+      name: user.name,
+      email: user.email,
+      role: user.role,
+      hasToken: !!token
+    });
 
     res.status(201).json({
       success: true,
@@ -40,13 +76,48 @@ exports.register = async (req, res) => {
         role: user.role
       }
     });
-  } catch (error) {
-    console.error('Registration error:', error);
-    res.status(500).json({
-      success: false,
-      message: 'Error during registration',
-      error: error.message
-    });
+    } catch (error) {
+      console.error('Registration error:', {
+        name: error.name,
+        message: error.message,
+        stack: error.stack,
+        code: error.code,
+        errors: error.errors
+      });
+
+      // Handle mongoose validation errors
+      if (error.name === 'ValidationError') {
+        const messages = Object.values(error.errors).map(err => err.message);
+        console.log('Validation error messages:', messages);
+        return res.status(400).json({
+          success: false,
+          message: 'Validation failed',
+          errors: messages
+        });
+      }
+
+      // Handle mongoose duplicate key error
+      if (error.code === 11000) {
+        console.log('Duplicate email error');
+        return res.status(400).json({
+          success: false,
+          message: 'An account with this email already exists'
+        });
+      }
+
+      // Log the complete error details for debugging
+      console.error('Unhandled registration error:', {
+        error,
+        body: req.body,
+        headers: req.headers
+      });
+
+      res.status(500).json({
+        success: false,
+        message: 'Registration failed. Please try again.',
+        error: error.message,
+        details: process.env.NODE_ENV === 'development' ? error.stack : undefined
+      });
   }
 };
 
@@ -70,6 +141,15 @@ exports.login = async (req, res) => {
       return res.status(401).json({
         success: false,
         message: 'Invalid credentials'
+      });
+    }
+
+    // Check if role matches
+    const { role } = req.body;
+    if (role && user.role !== role) {
+      return res.status(401).json({
+        success: false,
+        message: 'Invalid role for this user'
       });
     }
 
