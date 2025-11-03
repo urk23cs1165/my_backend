@@ -16,13 +16,16 @@ const corsOptions = {
   origin: [
     'https://pathhole-2717e.web.app',
     'https://pathhole-2717e.firebaseapp.com',
+    'http://pathhole-2717e.web.app',
+    'http://pathhole-2717e.firebaseapp.com',
     // Include localhost for development
     'http://localhost:5173',
     'http://localhost:5174',
     'http://localhost:5175'
   ],
   methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
-  allowedHeaders: ['Content-Type', 'Authorization'],
+  allowedHeaders: ['Content-Type', 'Authorization', 'Accept'],
+  exposedHeaders: ['Content-Length', 'Authorization'],
   credentials: true,
   maxAge: 86400 // 24 hours
 };
@@ -34,6 +37,9 @@ app.use(fileUpload());
 
 // Import routes
 const authRoutes = require('./routes/auth');
+
+// Mount routes
+app.use('/api/auth', authRoutes);
 
 // Create uploads directory if it doesn't exist
 const fs = require('fs');
@@ -56,6 +62,10 @@ const connectDB = async () => {
       dbName: 'smart_hazard_db'
     });
     console.log(`✅ MongoDB Connected: ${conn.connection.host}`);
+    
+    // Log successful database connection
+    console.log('MongoDB connection state:', mongoose.connection.readyState);
+    console.log('Using database:', mongoose.connection.db.databaseName);
     
     // Create collections if they don't exist
     await conn.connection.db.createCollection('reports', {
@@ -191,107 +201,7 @@ app.post('/api/upload', async (req, res) => {
 const Report = require('./models/Report');
 const User = require('./models/User');
 
-// User registration endpoint
-app.post('/api/auth/register', async (req, res) => {
-  try {
-    const { name, email, password, role } = req.body;
-    console.log('📝 Received registration data:', { name, email, role });
-
-    // Check if user exists
-    const existingUser = await User.findOne({ email });
-    if (existingUser) {
-      console.log('❌ User already exists:', email);
-      return res.status(400).json({
-        success: false,
-        message: 'User already exists'
-      });
-    }
-
-    // Create user
-    const user = await User.create({
-      name,
-      email,
-      password,
-      role: role || 'user'
-    });
-
-    console.log('✅ User registered successfully:', {
-      id: user._id,
-      name: user.name,
-      email: user.email
-    });
-
-    res.status(201).json({
-      success: true,
-      message: 'User registered successfully',
-      data: {
-        id: user._id,
-        name: user.name,
-        email: user.email,
-        role: user.role
-      }
-    });
-  } catch (error) {
-    console.error('❌ Registration error:', error);
-    res.status(500).json({
-      success: false,
-      message: 'Error registering user',
-      error: error.message
-    });
-  }
-});
-
-// User login endpoint
-app.post('/api/auth/login', async (req, res) => {
-  try {
-    const { email, password } = req.body;
-    console.log('🔐 Login attempt for:', email);
-
-    // Find user
-    const user = await User.findOne({ email }).select('+password');
-    if (!user) {
-      console.log('❌ User not found:', email);
-      return res.status(401).json({
-        success: false,
-        message: 'Invalid credentials'
-      });
-    }
-
-    // Check password
-    const isMatch = await user.matchPassword(password);
-    if (!isMatch) {
-      console.log('❌ Invalid password for:', email);
-      return res.status(401).json({
-        success: false,
-        message: 'Invalid credentials'
-      });
-    }
-
-    console.log('✅ User logged in successfully:', {
-      id: user._id,
-      name: user.name,
-      email: user.email
-    });
-
-    res.json({
-      success: true,
-      message: 'Logged in successfully',
-      data: {
-        id: user._id,
-        name: user.name,
-        email: user.email,
-        role: user.role
-      }
-    });
-  } catch (error) {
-    console.error('❌ Login error:', error);
-    res.status(500).json({
-      success: false,
-      message: 'Error logging in',
-      error: error.message
-    });
-  }
-});
+// Auth routes are handled by the imported auth router
 
 // Report submission endpoint
 app.post('/api/reports', async (req, res) => {
